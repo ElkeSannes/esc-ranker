@@ -184,4 +184,5 @@ async function start() {
   ctx.byId = new Map(ctx.songs.map((s) => [s.id, s]));
   render();
 }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 start();
