@@ -31,14 +31,23 @@ volledige nummers afspelen in de app, Spotify.
 
 ```
 ranker/
+  requirements.txt     Python-pakketten (requests, pandas, lxml, pytest, pillow)
+  package.json         alleen om `node --test` met ES-modules te laten werken
   data/
     build_songs.py     maakt songs.json (Wikipedia + iTunes)
+    make_icons.py      maakt de app-iconen
     overrides.csv      handmatige correcties
-    cache/             tussenresultaten van iTunes (niet in git)
+    cache/             tussenresultaten van Wikipedia/iTunes (niet in git)
   app/                 wordt gepubliceerd op GitHub Pages
     index.html
-    app.js             schermen, knoppen, audio, opslag
+    app.js             opstart, gedeelde staat, tabs Sorteren en Meer, navigatie
     ranking.js         model en paarselectie (geen DOM; los testbaar)
+    store.js           opslaan, exporteren, importeren (los testbaar)
+    ui.js              kleine hulpfuncties voor het bouwen van schermen
+    player.js          de ene audiospeler
+    sessions.js        schermen Schifting, Duel, Invoegen
+    group.js           scherm Groepje van 8
+    list.js            tab Ranglijst
     style.css
     songs.json
     manifest.json      app-naam en icoon voor Android
@@ -46,7 +55,7 @@ ranker/
     icon-192.png, icon-512.png
   tests/
     test_build_songs.py   (pytest)
-    ranking.test.js       (node --test)
+    ranking.test.js, store.test.js   (node --test)
 ```
 
 ## Gegevens: `songs.json`
@@ -104,13 +113,13 @@ dezelfde `a`, zodat ongedaan maken in één keer werkt.
   0,5 winst + 0,5 verlies per spel) tegen het anker van zijn schifting-tier. Zonder tier
   (bijvoorbeeld bij invoegen) is dat het OKÉ-anker. Zo vliegen nummers zonder verlies
   niet naar oneindig.
-- Schatten gebeurt met het MM-algoritme (Hunter, 2004). Het start vanaf de vorige
-  uitkomst en stopt bij een verandering < 1e-6 of na 200 rondes.
+- Schatten gebeurt met het MM-algoritme (Hunter, 2004). Het stopt bij een
+  verandering < 1e-7 of na 500 rondes.
 - De getoonde score is `1500 + 400·log10(s)`.
 - **Onzekerheid:** SE = 1 / √(Σ wt·p·(1−p)) over alle (virtuele) vergelijkingen van een
   nummer, omgerekend naar Elo-punten. In de lijst staat dat als rangbereik: de plaatsen
   die horen bij score ± 1 SE, bijvoorbeeld "#12 (8–17)".
-- Een nummer is **zeker** als SE < `ZEKER_SE` (start: 60 punten). **Zekerheid** van de
+- Een nummer is **zeker** als SE < `ZEKER_SE` (start: 100 punten; ±10 vergelijkingen met gelijkwaardige nummers). **Zekerheid** van de
   hele lijst = het aandeel zekere nummers.
 - **Ingedeeld** = een nummer met minstens één tier- of cmp-record.
 
@@ -183,7 +192,7 @@ vergelijkingsnummer. Bovenaan "vraag 3 van ~8".
 **Ranglijst:** jaarknoppen (Alle · 18 · 19 · 21 … 26) en per rij plaats, vlag,
 artiest – titel en een zekerheidsstip (leeg / half / vol). Een tik op een rij klapt die
 uit met play, YouTube, het rangbereik en **"verplaats naar #…"**. Slepen kan alleen met
-een filter op één jaar, via een grip ≡ (lang indrukken). Niet-ingedeelde nummers staan
+een filter op één jaar, via een grip ≡ (vastpakken en slepen). Niet-ingedeelde nummers staan
 apart onderaan.
 
 **Meer:** exporteren (deelmenu via Web Share; als dat niet werkt een download van
