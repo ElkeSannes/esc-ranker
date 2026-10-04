@@ -183,3 +183,90 @@ export function recentPairs(log, n = CONFIG.RECENT) {
   }
   return keys;
 }
+
+// ---------- toeval ----------
+
+// Kleine voorspelbare random-generator (mulberry32), zodat tests herhaalbaar zijn.
+export function makeRng(seed = Date.now()) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function shuffle(arr, rng) {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
+const yearOf = (id) => id.slice(0, 4);
+
+// Een van de 10 nummers waar het model het minst zeker over is.
+function uncertainPick(ranked, rng) {
+  return pick([...ranked].sort((x, y) => y.se - x.se).slice(0, CONFIG.NEAR), rng);
+}
+
+// Kans op een willekeurige tegenstander: van R_START naar R_END naarmate de lijst zekerder wordt.
+export function randomShare(cert) {
+  const t = Math.min(cert / CONFIG.R_END_AT, 1);
+  return CONFIG.R_START + (CONFIG.R_END - CONFIG.R_START) * t;
+}
+
+// ---------- duel ----------
+
+export function pickDuel(ranked, recent, cert, rng) {
+  if (ranked.length < 2) return null;
+  const first = uncertainPick(ranked, rng);
+  const i = ranked.indexOf(first);
+
+  let pool;
+  if (rng() < randomShare(cert)) {
+    pool = cert < CONFIG.R_WIDE_UNTIL
+      ? ranked
+      : ranked.slice(Math.max(0, i - CONFIG.R_RANGE), i + CONFIG.R_RANGE + 1);
+  } else {
+    let candidates = ranked;
+    if (rng() < CONFIG.SAME_YEAR) {
+      const same = ranked.filter((s) => yearOf(s.id) === yearOf(first.id));
+      if (same.length > 1) candidates = same;
+    }
+    // NEAR + 1, omdat `first` zelf ook in deze lijst staat.
+    pool = [...candidates]
+      .sort((x, y) => Math.abs(x.score - first.score) - Math.abs(y.score - first.score))
+      .slice(0, CONFIG.NEAR + 1);
+  }
+
+  let options = pool.filter((s) => s.id !== first.id && !recent.has(pairKey(first.id, s.id)));
+  if (!options.length) options = ranked.filter((s) => s.id !== first.id);
+  const second = pick(options, rng);
+  return rng() < 0.5 ? [first.id, second.id] : [second.id, first.id];
+}
+
+// ---------- groepje ----------
+
+export function pickGroup(ranked, cert, rng) {
+  const size = CONFIG.GROUP_SIZE;
+  if (ranked.length < size) return null;
+  const spread = cert < CONFIG.GROUP_LATE_FROM ? CONFIG.GROUP_SPREAD_EARLY : CONFIG.GROUP_SPREAD_LATE;
+  const nearCount = size - spread;
+
+  const center = ranked.indexOf(uncertainPick(ranked, rng));
+  const start = Math.min(Math.max(0, center - Math.floor(nearCount / 2)), ranked.length - nearCount);
+  const near = ranked.slice(start, start + nearCount);
+
+  // Eén willekeurig nummer uit elk gelijk stuk van de rest van de lijst.
+  const rest = ranked.filter((s) => !near.includes(s));
+  const chunk = rest.length / spread;
+  const far = [];
+  for (let k = 0; k < spread; k++) far.push(rest[Math.floor(k * chunk + rng() * chunk)]);
+
+  return shuffle([...near, ...far].map((s) => s.id), rng);
+}

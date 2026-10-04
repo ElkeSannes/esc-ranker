@@ -124,3 +124,119 @@ test('recentPairs: laatste vergelijkingen, richting maakt niet uit', () => {
   assert.equal(recent.size, 2);
   assert.equal(R.recentPairs(log, 1).size, 1);
 });
+
+// 100 nummers met gelijke onzekerheid, score aflopend; allemaal uit 2018.
+const fakeRanked = (n = 100, year = () => 2018) =>
+  Array.from({ length: n }, (_, i) => ({ id: `${year(i)}-${String(i).padStart(3, '0')}`, score: 2000 - i * 10, se: 200, rank: i + 1 }));
+const rankOf = (ranked) => new Map(ranked.map((s, i) => [s.id, i]));
+
+test('makeRng is herhaalbaar en shuffle houdt alle elementen', () => {
+  const a = R.makeRng(42), b = R.makeRng(42);
+  assert.deepEqual([a(), a(), a()], [b(), b(), b()]);
+  assert.deepEqual(R.shuffle([1, 2, 3, 4, 5], R.makeRng(1)).sort(), [1, 2, 3, 4, 5]);
+});
+
+test('randomShare loopt van 0.30 naar 0.15', () => {
+  near(R.randomShare(0), 0.30, 1e-9);
+  near(R.randomShare(0.4), 0.225, 1e-9);
+  near(R.randomShare(0.8), 0.15, 1e-9);
+  near(R.randomShare(1), 0.15, 1e-9);
+});
+
+test('pickDuel: null bij minder dan 2 nummers', () => {
+  assert.equal(R.pickDuel([], new Set(), 0, R.makeRng(1)), null);
+  assert.equal(R.pickDuel(fakeRanked(1), new Set(), 0, R.makeRng(1)), null);
+});
+
+test('pickDuel: twee verschillende bestaande nummers', () => {
+  const ranked = fakeRanked();
+  const rng = R.makeRng(7);
+  for (let i = 0; i < 200; i++) {
+    const [x, y] = R.pickDuel(ranked, new Set(), 0, rng);
+    assert.notEqual(x, y);
+    assert.ok(ranked.some((s) => s.id === x) && ranked.some((s) => s.id === y));
+  }
+});
+
+test('pickDuel: bij 0% zekerheid ongeveer 30% verre tegenstanders', () => {
+  const ranked = fakeRanked();
+  const pos = rankOf(ranked);
+  const rng = R.makeRng(3);
+  let far = 0;
+  const N = 3000;
+  for (let i = 0; i < N; i++) {
+    const [x, y] = R.pickDuel(ranked, new Set(), 0, rng);
+    if (Math.abs(pos.get(x) - pos.get(y)) > 10) far++;
+  }
+  assert.ok(far / N > 0.18 && far / N < 0.33, `aandeel ver: ${far / N}`);
+});
+
+test('pickDuel: bij hoge zekerheid nooit verder dan 40 plaatsen en minder vaak ver', () => {
+  const ranked = fakeRanked();
+  const pos = rankOf(ranked);
+  const rng = R.makeRng(5);
+  let far = 0;
+  const N = 3000;
+  for (let i = 0; i < N; i++) {
+    const [x, y] = R.pickDuel(ranked, new Set(), 1, rng);
+    const d = Math.abs(pos.get(x) - pos.get(y));
+    assert.ok(d <= 40, `afstand ${d}`);
+    if (d > 10) far++;
+  }
+  assert.ok(far / N < 0.2, `aandeel ver: ${far / N}`);
+});
+
+test('pickDuel: vermijdt recente paren als er alternatieven zijn', () => {
+  const ranked = fakeRanked(30);
+  const ids = ranked.map((s) => s.id);
+  const recent = new Set([R.pairKey(ids[0], ids[1]), R.pairKey(ids[0], ids[2]), R.pairKey(ids[1], ids[2])]);
+  const rng = R.makeRng(11);
+  for (let i = 0; i < 500; i++) {
+    const [x, y] = R.pickDuel(ranked, recent, 0, rng);
+    assert.ok(!recent.has(R.pairKey(x, y)));
+  }
+});
+
+test('pickDuel: valt terug op een recent paar als het niet anders kan', () => {
+  const ranked = fakeRanked(2);
+  const recent = new Set([R.pairKey(ranked[0].id, ranked[1].id)]);
+  assert.equal(R.pickDuel(ranked, recent, 0, R.makeRng(1)).length, 2);
+});
+
+const longestRun = (positions) => {
+  const sorted = [...positions].sort((x, y) => x - y);
+  let best = 1, run = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    run = sorted[i] === sorted[i - 1] + 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  return best;
+};
+
+test('pickGroup: null bij minder dan 8 nummers', () => {
+  assert.equal(R.pickGroup(fakeRanked(7), 0, R.makeRng(1)), null);
+});
+
+test('pickGroup: vroeg 4 dichtbij + 4 verspreid over de hele lijst', () => {
+  const ranked = fakeRanked();
+  const pos = rankOf(ranked);
+  const rng = R.makeRng(2);
+  for (let i = 0; i < 100; i++) {
+    const ids = R.pickGroup(ranked, 0, rng);
+    assert.equal(new Set(ids).size, 8);
+    const p = ids.map((id) => pos.get(id));
+    assert.ok(longestRun(p) >= 4);
+    assert.ok(Math.max(...p) - Math.min(...p) > 50);
+  }
+});
+
+test('pickGroup: later 6 dichtbij', () => {
+  const ranked = fakeRanked();
+  const pos = rankOf(ranked);
+  const rng = R.makeRng(4);
+  for (let i = 0; i < 100; i++) {
+    const ids = R.pickGroup(ranked, 0.9, rng);
+    assert.equal(new Set(ids).size, 8);
+    assert.ok(longestRun(ids.map((id) => pos.get(id))) >= 6);
+  }
+});
