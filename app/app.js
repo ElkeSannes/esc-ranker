@@ -4,9 +4,10 @@ import { load, save, exportText, parseState, daysSince } from './store.js';
 import { h } from './ui.js';
 import { stop } from './player.js';
 import { renderList } from './list.js';
+import { schifting, duel, invoegen } from './sessions.js';
 
-// Sessieschermen; Task 8 en 9 vullen dit.
-const SESSIONS = {};
+// Sessieschermen; Task 9 voegt het groepje toe.
+const SESSIONS = { schifting, duel, invoegen };
 
 const view = document.getElementById('view');
 const toastEl = document.getElementById('toast');
