@@ -21,8 +21,6 @@ const empty = (ctx, view, title, onUndo, text) =>
 export function schifting(ctx, view) {
   const placed = () => ctx.model().fitted;
   let queue = shuffle(ctx.songs.filter((s) => !placed().has(s.id)).map((s) => s.id), rng);
-  const done = [];  // in deze sessie geschifte nummers, voor ongedaan maken
-
   function render() {
     stop();
     queue = queue.filter((id) => !placed().has(id));
@@ -30,7 +28,6 @@ export function schifting(ctx, view) {
     if (!song) return empty(ctx, view, 'Snelle schifting', undoStep, 'Alle nummers zijn ingedeeld! 🎉');
     const choose = (tier) => guard(() => {
       ctx.commit((a) => tierRecord(song.id, tier, a));
-      done.push(song.id);
       render();
     });
     view.replaceChildren(frame(ctx, `Snelle schifting · nog ${queue.length}`, undoStep,
@@ -42,10 +39,10 @@ export function schifting(ctx, view) {
     play(song);
   }
 
+  // Een teruggedraaide schifting komt meteen weer in beeld.
   function undoStep() {
-    ctx.undoLast();
-    const id = done.pop();
-    if (id) queue.unshift(id);
+    const t = ctx.undoLast().find((r) => r.type === 'tier');
+    if (t) queue.unshift(t.id);
     render();
   }
 
@@ -76,8 +73,7 @@ export function duel(ctx, view) {
   }
 
   function undoStep() {
-    ctx.undoLast();
-    next();
+    if (ctx.undoLast().length) next();
   }
 
   next();

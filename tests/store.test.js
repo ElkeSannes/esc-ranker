@@ -4,7 +4,13 @@ import * as S from '../app/store.js';
 
 const fakeStorage = () => {
   const m = new Map();
-  return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+  return {
+    m,
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    key: (i) => [...m.keys()][i] ?? null,
+    get length() { return m.size; },
+  };
 };
 const goodState = () => ({
   version: 1,
@@ -26,7 +32,7 @@ test('load: kapotte opslag wordt apart bewaard, niet stil weggegooid', () => {
   const st = fakeStorage();
   st.setItem(S.KEY, '{kapot');
   assert.deepEqual(S.load(st), S.emptyState());
-  assert.equal(st.getItem(`${S.KEY}-kapot`), '{kapot');
+  assert.deepEqual(S.brokenCopies(st).map((k) => st.getItem(k)), ['{kapot']);
 });
 
 test('parseState: weigert een ander soort bestand', () => {
@@ -49,4 +55,15 @@ test('exportText en parseState zijn elkaars omgekeerde', () => {
 test('daysSince', () => {
   assert.equal(S.daysSince(null), null);
   assert.equal(S.daysSince('2026-10-01T12:00:00Z', new Date('2026-10-04T13:00:00Z')), 3);
+});
+
+test('load: een tweede kapotte opslag overschrijft de eerste kopie niet', () => {
+  const st = fakeStorage();
+  st.setItem(S.KEY, '{kapot1');
+  S.load(st, () => 1);
+  st.setItem(S.KEY, '{kapot2');
+  S.load(st, () => 2);
+  const copies = S.brokenCopies(st);
+  assert.equal(copies.length, 2);
+  assert.deepEqual(copies.map((k) => st.getItem(k)).sort(), ['{kapot1', '{kapot2']);
 });

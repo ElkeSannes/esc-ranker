@@ -54,8 +54,7 @@ export function groepje(ctx, view) {
   }
 
   function undoStep() {
-    ctx.undoLast();
-    next();
+    if (ctx.undoLast().length) next();
   }
 
   next();

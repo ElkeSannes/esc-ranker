@@ -1,6 +1,6 @@
 // app.js — opstart, gedeelde staat, tabs Sorteren en Meer, en navigatie.
-import { fit, rankList, certainty, filterKnown, undo, nextAction, dot } from './ranking.js';
-import { load, save, exportText, parseState, daysSince } from './store.js';
+import { fit, rankList, certainty, filterKnown, undo, nextAction, dot, lastAction, describeAction } from './ranking.js';
+import { load, save, exportText, parseState, daysSince, brokenCopies } from './store.js';
 import { h } from './ui.js';
 import { stop } from './player.js';
 import { renderList } from './list.js';
@@ -35,9 +35,18 @@ const ctx = {
     this.state.log.push(...build(nextAction(this.state.log)));
     this.changed();
   },
+  // Draait de laatste actie terug en geeft de verwijderde records terug ([] als er niets gebeurde).
+  // Een actie van vóór deze sessie gaat alleen terug na bevestiging, en je ziet altijd wat er terugging.
   undoLast() {
+    const recs = lastAction(this.state.log);
+    if (!recs.length) return [];
+    const what = describeAction(recs, songName);
+    if (this.session && recs[0].a < this.session.startAction
+      && !confirm(`Dit draait een keuze uit een eerdere sessie terug: ${what}. Doorgaan?`)) return [];
     this.state.log = undo(this.state.log);
     this.changed();
+    this.toast(`Ongedaan: ${what}`);
+    return recs;
   },
   changed() {
     this._model = null;
@@ -59,6 +68,11 @@ const ctx = {
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => { toastEl.hidden = true; }, 2500);
   },
+};
+
+const songName = (id) => {
+  const s = ctx.byId.get(id);
+  return s ? `${s.artist} – ${s.title}` : id;
 };
 
 const zekerIds = () => ctx.model().ranked.filter((s) => dot(s.se) === 'vol').map((s) => s.id);
@@ -105,6 +119,8 @@ function renderSort() {
     h('h1', {}, 'ESC Ranker'),
     bar('Ingedeeld', `${ranked.length}/${total}`, total ? ranked.length / total : 0),
     bar('Zekerheid', `${Math.round(cert * 100)}%`, cert),
+    brokenCopies().length ? h('button', { class: 'warn', onclick: () => { ctx.tab = 'more'; render(); } },
+      'Opgeslagen gegevens waren beschadigd. Er is een kopie bewaard: zie Meer') : '',
     needBackup ? h('button', { class: 'warn', onclick: () => { ctx.tab = 'more'; render(); } },
       days === null ? 'Nog geen back-up gemaakt: maak er nu een' : `Laatste back-up ${days} dagen geleden: maak een nieuwe`) : '',
     h('div', { class: 'menu' },
@@ -128,8 +144,14 @@ function renderMore() {
     h('button', { class: 'big primary', onclick: exportBackup }, 'Back-up exporteren'),
     h('button', { class: 'big', onclick: () => fileInput.click() }, 'Back-up importeren'),
     fileInput,
+    ...brokenCopies().map((key) => h('button', { class: 'big warn', onclick: () => downloadText(key, localStorage.getItem(key)) },
+      `Download beschadigde kopie (${key.split('-').pop()})`)),
     h('p', { class: 'muted' }, `${ctx.songs.length} nummers · opslag ${persisted ? 'beschermd' : 'niet beschermd'}`),
   );
+}
+
+function downloadText(name, text) {
+  h('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: `${name}.json` }).click();
 }
 
 async function exportBackup() {
@@ -180,7 +202,12 @@ window.addEventListener('popstate', () => { if (ctx.session) endSession(); });
 navigator.storage?.persist?.().then((p) => { persisted = p; });
 
 async function start() {
-  ctx.songs = await (await fetch('songs.json')).json();
+  try {
+    ctx.songs = await (await fetch('songs.json')).json();
+  } catch {
+    view.replaceChildren(h('p', { class: 'empty' }, 'Kan de nummers niet laden. Controleer je internet en open de app opnieuw.'));
+    return;
+  }
   ctx.byId = new Map(ctx.songs.map((s) => [s.id, s]));
   render();
 }

@@ -270,3 +270,31 @@ export function pickGroup(ranked, cert, rng) {
 
   return shuffle([...near, ...far].map((s) => s.id), rng);
 }
+
+// ---------- ongedaan maken en verplaatsen ----------
+
+export function lastAction(log) {
+  if (!log.length) return [];
+  const last = log[log.length - 1].a;
+  return log.filter((r) => r.a === last);
+}
+
+// Korte omschrijving van een actie, voor de melding na ↶. `name(id)` geeft een leesbare naam.
+export function describeAction(recs, name) {
+  if (!recs.length) return '';
+  const [r] = recs;
+  if (r.type === 'tier') return `schifting van ${name(r.id)}`;
+  const pairs = recs.map((x) => [x.w, x.l]);
+  const common = pairs[0].find((id) => pairs.every((p) => p.includes(id)));
+  if (r.wt === CONFIG.GROUP_WT) return `groepje van ${new Set(pairs.flat()).size}`;
+  if (r.wt === CONFIG.MOVE_WT) return recs.length > 1 ? `verplaatsing van ${name(common)}` : 'verplaatsing';
+  if (recs.length === 1) return `duel ${name(r.w)} tegen ${name(r.l)}`;
+  return `invoeging van ${name(common)}`;
+}
+
+// Ingetypte plek (1 = bovenaan) -> geldige plek, of null bij lege/ongeldige invoer.
+export function targetPosition(value, count) {
+  const n = Math.round(Number(value));
+  if (value === '' || !Number.isFinite(n) || n < 1) return null;
+  return Math.min(n, count);
+}

@@ -7,16 +7,26 @@ export function emptyState() {
   return { version: 1, log: [], lastExport: null };
 }
 
-export function load(storage = localStorage) {
+export function load(storage = localStorage, now = Date.now) {
   const raw = storage.getItem(KEY);
   if (!raw) return emptyState();
   try {
     return parseState(raw);
   } catch {
-    // Niet stil overschrijven: bewaar de kapotte versie zodat er nog iets te redden valt.
-    storage.setItem(`${KEY}-kapot`, raw);
+    // Niet stil weggooien: bewaar de kapotte versie (met tijdstempel, dus nooit overschreven).
+    storage.setItem(`${KEY}-kapot-${now()}`, raw);
     return emptyState();
   }
+}
+
+// Sleutels van bewaarde kapotte versies; de app toont die zodat je ze kunt downloaden.
+export function brokenCopies(storage = localStorage) {
+  const keys = [];
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (k.startsWith(`${KEY}-kapot`)) keys.push(k);
+  }
+  return keys;
 }
 
 export function save(state, storage = localStorage) {

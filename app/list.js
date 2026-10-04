@@ -1,5 +1,5 @@
 // list.js — tab Ranglijst: filter op jaar en details per nummer.
-import { dot, moveRecords } from './ranking.js';
+import { dot, moveRecords, targetPosition } from './ranking.js';
 import { h, flag, guard } from './ui.js';
 import { playButton, ytLink } from './player.js';
 
@@ -48,15 +48,17 @@ function details(ctx, entry, song, i, visible, rerender) {
     h('p', { class: 'muted' },
       `Totaal #${entry.rank} (waarschijnlijk tussen #${entry.lo} en #${entry.hi}) · ${Math.round(entry.n)} vergelijkingen`),
     h('div', { class: 'row' },
-      h('span', {}, 'Verplaats naar #'),
+      h('span', {}, year === 'all' ? 'Verplaats naar #' : `Plek in '${String(year).slice(2)}: #`),
       input,
-      h('button', { onclick: guard(() => moveTo(ctx, entry.id, Number(input.value), visible, rerender)) }, 'OK')));
+      h('button', { onclick: guard(() => moveTo(ctx, entry.id, input.value, visible, rerender)) }, 'OK')));
 }
 
 // Verplaats naar plek `pos` (1 = bovenaan) in de zichtbare lijst: twee zware vergelijkingen met de nieuwe buren.
 function moveTo(ctx, id, pos, visible, rerender) {
   const others = visible.filter((s) => s.id !== id);
-  const k = Math.min(Math.max(1, Math.round(pos) || 1), others.length + 1) - 1;
+  const target = targetPosition(pos, others.length + 1);
+  if (target === null) return ctx.toast('Vul een plek in, bijvoorbeeld 1');
+  const k = target - 1;
   ctx.commit((a) => moveRecords(id, others[k - 1]?.id ?? null, others[k]?.id ?? null, a));
   rerender();
 }

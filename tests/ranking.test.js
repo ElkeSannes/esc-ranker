@@ -240,3 +240,27 @@ test('pickGroup: later 6 dichtbij', () => {
     assert.ok(longestRun(ids.map((id) => pos.get(id))) >= 6);
   }
 });
+
+test('lastAction: de records van de laatste actie', () => {
+  const log = [tier('A', 'top', 1), cmp('A', 'B', 2, 0.5), cmp('A', 'C', 2, 0.5)];
+  assert.deepEqual(R.lastAction(log), log.slice(1));
+  assert.deepEqual(R.lastAction([]), []);
+});
+
+test('describeAction: zegt in gewone taal wat er wordt teruggedraaid', () => {
+  const name = (id) => `#${id}`;
+  assert.equal(R.describeAction([tier('A', 'top')], name), 'schifting van #A');
+  assert.equal(R.describeAction([cmp('A', 'B')], name), 'duel #A tegen #B');
+  assert.equal(R.describeAction(R.groupRecords(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], 1), name), 'groepje van 8');
+  assert.equal(R.describeAction(R.moveRecords('X', 'U', 'L', 1), name), 'verplaatsing van #X');
+  assert.equal(R.describeAction(R.finishInsert('N', [{ otherId: 'A', better: true }, { otherId: 'B', better: false }], 1), name), 'invoeging van #N');
+});
+
+test('targetPosition: ongeldige invoer doet niets, de rest wordt begrensd', () => {
+  assert.equal(R.targetPosition('', 10), null);
+  assert.equal(R.targetPosition('0', 10), null);
+  assert.equal(R.targetPosition('abc', 10), null);
+  assert.equal(R.targetPosition('3', 10), 3);
+  assert.equal(R.targetPosition('2.6', 10), 3);
+  assert.equal(R.targetPosition('99', 10), 10);
+});
