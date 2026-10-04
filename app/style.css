@@ -94,3 +94,7 @@ ol.ranking li { display: flex; flex-wrap: wrap; align-items: center; border-bott
 .details { width: 100%; padding: 0 8px 12px 46px; }
 .details input { width: 72px; padding: 8px; border-radius: 8px; border: none; font: inherit; }
 .unplaced { color: var(--muted); font-size: 14px; padding-left: 20px; }
+.grip { padding: 12px; color: var(--muted); touch-action: none; user-select: none; font-size: 20px; cursor: grab; }
+li.dragging { opacity: .5; }
+li.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+ol.drop-end { box-shadow: 0 3px 0 var(--accent); }
