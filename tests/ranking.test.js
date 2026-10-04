@@ -65,3 +65,62 @@ test('filterKnown: laat records met onbekende nummers weg', () => {
   const log = [cmp('A', 'B'), cmp('A', 'X'), tier('X', 'top'), tier('B', 'meh')];
   assert.deepEqual(R.filterKnown(log, known), [cmp('A', 'B'), tier('B', 'meh')]);
 });
+
+test('nextAction en undo werken per actie', () => {
+  assert.equal(R.nextAction([]), 1);
+  const log = [tier('A', 'top', 1), cmp('A', 'B', 2, 0.5), cmp('A', 'C', 2, 0.5)];
+  assert.equal(R.nextAction(log), 3);
+  assert.deepEqual(R.undo(log), [tier('A', 'top', 1)]);
+  assert.deepEqual(R.undo([]), []);
+});
+
+test('tierRecord en duelRecords', () => {
+  assert.deepEqual(R.tierRecord('A', 'meh', 4), [tier('A', 'meh', 4)]);
+  assert.deepEqual(R.duelRecords('A', 'B', 5), [cmp('A', 'B', 5)]);
+});
+
+test('groupRecords: alle paren volgens de volgorde, met half gewicht', () => {
+  const order = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const recs = R.groupRecords(order, 7);
+  assert.equal(recs.length, 28);
+  assert.ok(recs.every((r) => r.a === 7 && r.wt === 0.5 && order.indexOf(r.w) < order.indexOf(r.l)));
+});
+
+test('moveRecords: zwaar gewicht tegen de nieuwe buren', () => {
+  assert.deepEqual(R.moveRecords('X', 'U', 'L', 3), [cmp('X', 'L', 3, 3), cmp('U', 'X', 3, 3)]);
+  assert.deepEqual(R.moveRecords('X', null, 'L', 3), [cmp('X', 'L', 3, 3)]);
+  assert.deepEqual(R.moveRecords('X', 'U', null, 3), [cmp('U', 'X', 3, 3)]);
+});
+
+test('invoegen: binair zoeken vindt elke plek in hooguit 4 vragen bij 10 nummers', () => {
+  const ranked = Array.from({ length: 10 }, (_, i) => ({ id: `S${i}` }));
+  for (let target = 0; target <= 10; target++) {
+    let state = R.insertStart(ranked);
+    let questions = 0;
+    for (let m = R.insertProbe(state); m !== null; m = R.insertProbe(state)) {
+      state = R.insertAnswer(state, m >= target);  // beter dan alles vanaf plek `target`
+      questions++;
+    }
+    assert.equal(state.lo, target);
+    assert.ok(questions <= 4);
+  }
+});
+
+test('finishInsert: antwoorden worden vergelijkingen', () => {
+  const recs = R.finishInsert('N', [{ otherId: 'A', better: false }, { otherId: 'B', better: true }], 9);
+  assert.deepEqual(recs, [cmp('A', 'N', 9), cmp('N', 'B', 9)]);
+});
+
+test('finishInsert: lege lijst geeft schifting oké, zodat het nummer ingedeeld is', () => {
+  assert.equal(R.insertProbe(R.insertStart([])), null);
+  assert.deepEqual(R.finishInsert('N', [], 1), [tier('N', 'oke', 1)]);
+});
+
+test('recentPairs: laatste vergelijkingen, richting maakt niet uit', () => {
+  const log = [cmp('A', 'B', 1), tier('C', 'top', 2), cmp('D', 'C', 3)];
+  const recent = R.recentPairs(log, 20);
+  assert.ok(recent.has(R.pairKey('B', 'A')));
+  assert.ok(recent.has(R.pairKey('C', 'D')));
+  assert.equal(recent.size, 2);
+  assert.equal(R.recentPairs(log, 1).size, 1);
+});

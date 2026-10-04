@@ -110,3 +110,76 @@ export function dot(se) {
 export function filterKnown(log, known) {
   return log.filter((r) => (r.type === 'tier' ? known.has(r.id) : known.has(r.w) && known.has(r.l)));
 }
+
+// ---------- het log ----------
+
+export function nextAction(log) {
+  return log.reduce((max, r) => Math.max(max, r.a), 0) + 1;
+}
+
+// Haal alle records van de laatste actie weg (een groepje gaat dus in één keer terug).
+export function undo(log) {
+  if (!log.length) return log;
+  const last = log[log.length - 1].a;
+  return log.filter((r) => r.a !== last);
+}
+
+const cmpRecord = (w, l, a, wt = 1) => ({ a, type: 'cmp', w, l, wt });
+
+export function tierRecord(id, tier, a) {
+  return [{ a, type: 'tier', id, tier }];
+}
+
+export function duelRecords(winner, loser, a) {
+  return [cmpRecord(winner, loser, a)];
+}
+
+export function groupRecords(order, a) {
+  const recs = [];
+  for (let i = 0; i < order.length; i++) {
+    for (let j = i + 1; j < order.length; j++) recs.push(cmpRecord(order[i], order[j], a, CONFIG.GROUP_WT));
+  }
+  return recs;
+}
+
+// Handmatig verplaatst: wint van de nieuwe onderbuur, verliest van de nieuwe bovenbuur.
+export function moveRecords(id, upperId, lowerId, a) {
+  const recs = [];
+  if (lowerId) recs.push(cmpRecord(id, lowerId, a, CONFIG.MOVE_WT));
+  if (upperId) recs.push(cmpRecord(upperId, id, a, CONFIG.MOVE_WT));
+  return recs;
+}
+
+// ---------- invoegen (binair zoeken) ----------
+// De plek van het nieuwe nummer ligt tussen lo en hi (indexen in `ranked`, 0 = bovenaan).
+
+export function insertStart(ranked) {
+  return { lo: 0, hi: ranked.length };
+}
+
+export function insertProbe(state) {
+  return state.lo < state.hi ? Math.floor((state.lo + state.hi) / 2) : null;
+}
+
+export function insertAnswer(state, better) {
+  const mid = insertProbe(state);
+  return better ? { lo: state.lo, hi: mid } : { lo: mid + 1, hi: state.hi };
+}
+
+export function finishInsert(id, answers, a) {
+  if (!answers.length) return tierRecord(id, 'oke', a);
+  return answers.map((x) => (x.better ? cmpRecord(id, x.otherId, a) : cmpRecord(x.otherId, id, a)));
+}
+
+// ---------- recente paren ----------
+
+export const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+
+export function recentPairs(log, n = CONFIG.RECENT) {
+  const keys = new Set();
+  for (let i = log.length - 1; i >= 0 && keys.size < n; i--) {
+    const r = log[i];
+    if (r.type === 'cmp') keys.add(pairKey(r.w, r.l));
+  }
+  return keys;
+}
