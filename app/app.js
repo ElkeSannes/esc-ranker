@@ -5,9 +5,9 @@ import { h } from './ui.js';
 import { stop } from './player.js';
 import { renderList } from './list.js';
 import { schifting, duel, invoegen } from './sessions.js';
+import { groepje } from './group.js';
 
-// Sessieschermen; Task 9 voegt het groepje toe.
-const SESSIONS = { schifting, duel, invoegen };
+const SESSIONS = { schifting, duel, invoegen, groepje };
 
 const view = document.getElementById('view');
 const toastEl = document.getElementById('toast');
