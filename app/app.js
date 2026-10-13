@@ -159,13 +159,18 @@ async function exportBackup() {
   const name = `esc-ranker-${now.slice(0, 10)}.json`;
   const file = new File([exportText({ ...ctx.state, lastExport: now })], name, { type: 'application/json' });
   try {
+    let shared = false;
     if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: name });
-    } else {
-      h('a', { href: URL.createObjectURL(file), download: name }).click();
+      try {
+        await navigator.share({ files: [file], title: name });
+        shared = true;
+      } catch (e) {
+        if (e.name === 'AbortError') return;  // delen geannuleerd
+        // Deelmenu geweigerd (bijv. "Permission denied"): download het bestand dan gewoon.
+      }
     }
+    if (!shared) h('a', { href: URL.createObjectURL(file), download: name }).click();
   } catch (e) {
-    if (e.name === 'AbortError') return;  // delen geannuleerd
     alert(`Exporteren mislukt: ${e.message}`);
     return;
   }
